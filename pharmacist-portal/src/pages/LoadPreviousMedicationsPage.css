@@ -1,0 +1,384 @@
+.load-medications-page {
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Header styles (reusing from other pages) */
+.compact-header {
+  background: #103941;
+  color: white;
+  padding: 12px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-logo {
+  height: 32px;
+  width: auto;
+}
+
+.brand-name {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.header-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.user-info {
+  margin: 0;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.shortcuts-btn, .logout-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.shortcuts-btn:hover, .logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.shortcuts-icon, .logout-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Main content */
+.main-content {
+  padding: 24px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.content-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  overflow: hidden;
+  min-height: calc(100vh - 108px);
+}
+
+.page-header {
+  padding: 24px;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.header-info h2 {
+  margin: 0 0 8px 0;
+  color: #103941;
+  font-size: 24px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.patient-info {
+  margin: 0;
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+/* Loading and error states */
+.loading-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 60vh;
+  font-size: 18px;
+  color: #6c757d;
+}
+
+.error-message {
+  margin: 24px;
+  padding: 16px;
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.no-medications-message {
+  text-align: center;
+  padding: 60px 24px;
+  color: #6c757d;
+}
+
+.no-medications-message h3 {
+  margin: 0 0 12px 0;
+  color: #495057;
+  font-size: 20px;
+}
+
+.no-medications-message p {
+  margin: 0 0 24px 0;
+  font-size: 16px;
+}
+
+/* Controls */
+.medications-controls {
+  padding: 24px;
+  border-bottom: 1px solid #e9ecef;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f8f9fa;
+}
+
+.control-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.selection-count {
+  color: #6c757d;
+  font-size: 14px;
+}
+
+/* Buttons */
+.btn {
+  padding: 10px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Green buttons - General theming and primary actions */
+.btn-primary {
+  background: #048c7c;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #037067;
+}
+
+.btn-primary:disabled {
+  background: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.btn-general {
+  background: #048c7c;
+  color: white;
+}
+
+.btn-general:hover {
+  background: #037067;
+}
+
+/* Blue buttons - Patient-related actions */
+.btn-patient {
+  background: #103941;
+  color: white;
+}
+
+.btn-patient:hover {
+  background: #0d2e34;
+}
+
+/* Orange buttons - Add medication actions */
+.btn-add-medication {
+  background: #d47f2f;
+  color: white;
+}
+
+.btn-add-medication:hover {
+  background: #c0722a;
+}
+
+/* Table */
+.medications-table-container {
+  overflow-x: auto;
+}
+
+.medications-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.medications-table th {
+  background: #f8f9fa;
+  color: #495057;
+  font-weight: 600;
+  padding: 12px;
+  text-align: left;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.medications-table td {
+  padding: 12px;
+  border-bottom: 1px solid #dee2e6;
+  vertical-align: top;
+}
+
+.medications-table tr:hover {
+  background: #f8f9fa;
+}
+
+.medications-table tr.selected {
+  background: #e8f2f4;
+}
+
+.medications-table tr.selected:hover {
+  background: #d1e7ea;
+}
+
+.select-column {
+  width: 40px;
+  text-align: center;
+}
+
+.select-column input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.medication-name {
+  min-width: 200px;
+}
+
+.medication-name strong {
+  color: #103941;
+}
+
+.precautions-cell {
+  max-width: 200px;
+}
+
+.precautions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.precaution-item {
+  background: #e9ecef;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #495057;
+}
+
+.precaution-more {
+  color: #6c757d;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Summary */
+.selected-medications-summary {
+  padding: 24px;
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+}
+
+.selected-medications-summary h3 {
+  margin: 0 0 16px 0;
+  color: #103941;
+  font-size: 18px;
+}
+
+.summary-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.summary-item {
+  background: white;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+  font-size: 14px;
+}
+
+.summary-item strong {
+  color: #103941;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .page-header {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .medications-controls {
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+
+  .control-group {
+    justify-content: center;
+  }
+
+  .medications-table {
+    font-size: 12px;
+  }
+
+  .medications-table th,
+  .medications-table td {
+    padding: 8px;
+  }
+
+  .summary-list {
+    grid-template-columns: 1fr;
+  }
+}

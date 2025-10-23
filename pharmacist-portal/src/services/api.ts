@@ -447,4 +447,13 @@ export const medicationOptionsApi = {
   }
 };
 
+export const whatsappApi = {
+  sendMessage: async (patientId: string, templateName: string, languageCode: string) => {
+    return apiRequest<{ success: boolean; message: string }>('/whatsapp/send', {
+      method: 'POST',
+      body: JSON.stringify({ patientId, templateName, languageCode }),
+    });
+  }
+};
+
 export { ApiError };

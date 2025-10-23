@@ -390,4 +390,14 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-module.exports = router;
+// Utility function to get patient by ID
+async function getPatientById(patientId) {
+  const result = await db.query('SELECT * FROM patients WHERE id = $1', [patientId]);
+  return result.rows[0];
+}
+
+// Export both router and utility function
+module.exports = {
+  router,
+  getPatientById
+};

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './CheckInstructionsPage.css';
+import { whatsappApi } from '../services/api'; // Import your new API function
 
 interface MedicationForm {
   name: string;
@@ -81,39 +82,15 @@ const CheckInstructionsPage: React.FC = () => {
   const sendWhatsAppMessage = async () => {
     setIsLoading(true);
     try {
-      // WhatsApp API configuration
-      const phoneNumberId = '15551561638'; // Test number provided
-      const accessToken = 'EAAaPekkgN14BPXUKCBcX8mvIn9R0d4MZAS3aUnSgjwie4d4ME1ZAmCWLnks0m7T0uBHVtMMBCyxXIpjoQm4ZANR8uldTgx7cIf5FfHBojWNpVJOUVYfZAm0xajXKEbnREk5d535XKv7NmmnrZB8YrNFF1oHzZCWPiW4UeeZAuynZAmiMNMCIxZBCDjpFVEH6aHt8hDIZCRBHnog1WZBTgfuEVX7eX0VuqulVZBcZBDypGEFJfDrKZAOwZDZD';
-      const recipientNumber = '+27791875164';
+      // Get patientId from localStorage or your state
+      const patientData = localStorage.getItem('patientData');
+      const patientId = patientData ? JSON.parse(patientData).id : null;
+      if (!patientId) throw new Error('No patient ID found');
 
-      const response = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          to: recipientNumber,
-          type: 'template',
-          template: {
-            name: 'hello_world',
-            language: {
-              code: 'en_US'
-            }
-          }
-        })
-      });
+      // Call backend to send WhatsApp message securely
+      await whatsappApi.sendMessage(patientId, "hello_world", "en_US");
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('WhatsApp message sent successfully:', result);
-        alert('Message sent successfully to WhatsApp!');
-      } else {
-        const error = await response.json();
-        console.error('Failed to send WhatsApp message:', error);
-        alert('Failed to send message. Please try again.');
-      }
+      alert('Message sent successfully to WhatsApp!');
     } catch (error) {
       console.error('Error sending WhatsApp message:', error);
       alert('An error occurred while sending the message.');
@@ -122,6 +99,51 @@ const CheckInstructionsPage: React.FC = () => {
       setShowWhatsAppModal(false);
     }
   };
+
+  // const sendWhatsAppMessage = async () => {
+  //   setIsLoading(true);
+  //   try {
+  //     // WhatsApp API configuration
+  //     const phoneNumberId = '15551561638'; // Test number provided
+  //     const accessToken = 'EAAaPekkgN14BPXUKCBcX8mvIn9R0d4MZAS3aUnSgjwie4d4ME1ZAmCWLnks0m7T0uBHVtMMBCyxXIpjoQm4ZANR8uldTgx7cIf5FfHBojWNpVJOUVYfZAm0xajXKEbnREk5d535XKv7NmmnrZB8YrNFF1oHzZCWPiW4UeeZAuynZAmiMNMCIxZBCDjpFVEH6aHt8hDIZCRBHnog1WZBTgfuEVX7eX0VuqulVZBcZBDypGEFJfDrKZAOwZDZD';
+  //     const recipientNumber = '+27791875164';
+
+  //     const response = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Authorization': `Bearer ${accessToken}`,
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         messaging_product: 'whatsapp',
+  //         to: recipientNumber,
+  //         type: 'template',
+  //         template: {
+  //           name: 'hello_world',
+  //           language: {
+  //             code: 'en_US'
+  //           }
+  //         }
+  //       })
+  //     });
+
+  //     if (response.ok) {
+  //       const result = await response.json();
+  //       console.log('WhatsApp message sent successfully:', result);
+  //       alert('Message sent successfully to WhatsApp!');
+  //     } else {
+  //       const error = await response.json();
+  //       console.error('Failed to send WhatsApp message:', error);
+  //       alert('Failed to send message. Please try again.');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error sending WhatsApp message:', error);
+  //     alert('An error occurred while sending the message.');
+  //   } finally {
+  //     setIsLoading(false);
+  //     setShowWhatsAppModal(false);
+  //   }
+  // };
 
   const handleSendToWhatsApp = () => {
     setShowWhatsAppModal(true);

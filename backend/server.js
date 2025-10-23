@@ -4,7 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 require('dotenv').config();
 
-const patientRoutes = require('./routes/patients');
+const { router: patientRoutes } = require('./routes/patients');
 const medicationRoutes = require('./routes/medications');
 const translationRoutes = require('./routes/translations');
 const medicationOptionsRoutes = require('./routes/medicationOptions');
@@ -32,6 +32,10 @@ app.use('/api/medications', medicationRoutes);
 app.use('/api/translations', translationRoutes);
 app.use('/api/medication-options', medicationOptionsRoutes);
 app.use('/api/pharmacists', pharmacistRoutes);
+
+// NEW WHATSAPP ROUTE
+const whatsappRoutes = require('./routes/whatsapp');
+app.use('/api/whatsapp', whatsappRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {

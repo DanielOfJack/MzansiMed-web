@@ -49,6 +49,11 @@ const createTables = async () => {
       )
     `);
 
+    // Add role column if it doesn't exist
+    await pool.query(`
+      ALTER TABLE pharmacists ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'
+    `);
+
     // Create an index on surname for faster searching
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_patients_surname ON patients(surname)
@@ -410,19 +415,18 @@ const insertSamplePharmacists = async () => {
   const saltRounds = 10;
 
   const samplePharmacists = [
-    { name: 'Daniel', surname: 'van Zyl', pNumber: 'P-10513', password: 'password123' },
-    { name: 'Sarah', surname: 'Johnson', pNumber: 'P-10514', password: 'securepass456' },
-    { name: 'Michael', surname: 'Smith', pNumber: 'P-10515', password: 'pharmacy789' },
-    { name: 'Emma', surname: 'Wilson', pNumber: 'P-10516', password: 'medcare321' }
+    { name: 'Daniel', surname: 'van Zyl', pNumber: 'P-10513', password: 'password123', role: 'admin' },
+    { name: 'Sarah', surname: 'Johnson', pNumber: 'P-10514', password: 'securepass456', role: 'user' },
+    { name: 'Michael', surname: 'Smith', pNumber: 'P-10515', password: 'pharmacy789', role: 'user' },
+    { name: 'Emma', surname: 'Wilson', pNumber: 'P-10516', password: 'medcare321', role: 'user' }
   ];
 
   try {
     for (const pharmacist of samplePharmacists) {
       const passwordHash = await bcrypt.hash(pharmacist.password, saltRounds);
-      
       await pool.query(
-        'INSERT INTO pharmacists (name, surname, p_number, password_hash) VALUES ($1, $2, $3, $4)',
-        [pharmacist.name, pharmacist.surname, pharmacist.pNumber, passwordHash]
+        'INSERT INTO pharmacists (name, surname, p_number, password_hash, role) VALUES ($1, $2, $3, $4, $5)',
+        [pharmacist.name, pharmacist.surname, pharmacist.pNumber, passwordHash, pharmacist.role]
       );
     }
     console.log('Sample pharmacist data inserted successfully');

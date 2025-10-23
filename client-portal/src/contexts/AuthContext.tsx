@@ -30,24 +30,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [user, setUser] = useState<User | null>(null);
 
-  const login = async (username: string, password: string): Promise<boolean> => {
+  const login = async (pNumber: string, password: string): Promise<boolean> => {
     try {
-      // Simulate API call - replace with actual authentication logic
-      if (username && password) {
-        // For demo purposes, accept any non-empty credentials
-        // In production, this should validate against your backend
-        const mockUser: User = {
-          username,
-          name: `User ${username}`
-        };
-        
-        setUser(mockUser);
+      // Call backend API for authentication
+      const response = await fetch('http://localhost:3001/api/pharmacists/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pNumber, password })
+      });
+      const result = await response.json();
+
+      if (result.success && result.token) {
+        // Store JWT token for future API calls
+        localStorage.setItem('token', result.token);
+
+        // Store user info for session
+        setUser(result.data);
         setIsAuthenticated(true);
-        
-        // Store in localStorage for persistence
-        localStorage.setItem('user', JSON.stringify(mockUser));
+        localStorage.setItem('user', JSON.stringify(result.data));
         localStorage.setItem('isAuthenticated', 'true');
-        
         return true;
       }
       return false;

@@ -2,6 +2,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcrypt');
 const { pool } = require('../config/database');
+const { authenticate, requireAdmin } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -76,83 +77,67 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create new pharmacist
+// Create new pharmacist (protected, validated, hashed password)
 router.post('/',
+  authenticate,
+  requireAdmin,
   [
     body('name')
       .trim()
-      .isLength({ min: 1, max: 100 })
-      .withMessage('Name must be between 1 and 100 characters'),
+      .isLength({ min: 2, max: 50 })
+      .escape()
+      .withMessage('Name must be 2-50 characters'),
     body('surname')
       .trim()
-      .isLength({ min: 1, max: 100 })
-      .withMessage('Surname must be between 1 and 100 characters'),
+      .isLength({ min: 2, max: 50 })
+      .escape()
+      .withMessage('Surname must be 2-50 characters'),
     body('pNumber')
       .trim()
-      .matches(/^P-\d+$/)
-      .withMessage('P-Number must be in format P-XXXXX'),
+      .matches(/^P-\d{5}$/)
+      .withMessage('P-Number must be in format P-#####'),
     body('password')
-      .isLength({ min: 6 })
-      .withMessage('Password must be at least 6 characters long')
+      .isLength({ min: 8 })
+      .withMessage('Password must be at least 8 characters')
   ],
   async (req, res) => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Validation errors',
-          errors: errors.array()
-        });
-      }
-
-      const { name, surname, pNumber, password } = req.body;
-
-      // Check if P-number already exists
-      const existingPharmacist = await pool.query(
-        'SELECT id FROM pharmacists WHERE p_number = $1',
-        [pNumber]
-      );
-
-      if (existingPharmacist.rows.length > 0) {
-        return res.status(409).json({
-          success: false,
-          message: 'P-number already exists'
-        });
-      }
-
-      // Hash password
-      const saltRounds = 10;
-      const passwordHash = await bcrypt.hash(password, saltRounds);
-
-      // Insert new pharmacist
-      const result = await pool.query(`
-        INSERT INTO pharmacists (name, surname, p_number, password_hash)
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, name, surname, p_number, created_at, updated_at
-      `, [name, surname, pNumber, passwordHash]);
-
-      const newPharmacist = result.rows[0];
-      res.status(201).json({
-        success: true,
-        message: 'Pharmacist created successfully',
-        data: {
-          id: newPharmacist.id,
-          name: newPharmacist.name,
-          surname: newPharmacist.surname,
-          pNumber: newPharmacist.p_number,
-          createdAt: newPharmacist.created_at,
-          updatedAt: newPharmacist.updated_at
-        }
-      });
-    } catch (error) {
-      console.error('Error creating pharmacist:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to create pharmacist',
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
-      });
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
     }
+
+    const { name, surname, pNumber, password } = req.body;
+
+    // Check for duplicate pNumber
+    const existing = await pool.query('SELECT id FROM pharmacists WHERE p_number = $1', [pNumber]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ success: false, message: 'P-number already exists' });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert pharmacist (only validated fields)
+    const result = await pool.query(
+      `INSERT INTO pharmacists (name, surname, p_number, password_hash)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, surname, p_number, created_at, updated_at`,
+      [name, surname, pNumber, hashedPassword]
+    );
+
+    const newPharmacist = result.rows[0];
+    res.status(201).json({
+      success: true,
+      message: 'Pharmacist created successfully',
+      data: {
+        id: newPharmacist.id,
+        name: newPharmacist.name,
+        surname: newPharmacist.surname,
+        pNumber: newPharmacist.p_number,
+        createdAt: newPharmacist.created_at,
+        updatedAt: newPharmacist.updated_at
+      }
+    });
   }
 );
 
@@ -356,7 +341,7 @@ router.post('/auth',
 
       // Find pharmacist by P-number
       const result = await pool.query(
-        'SELECT id, name, surname, p_number, password_hash FROM pharmacists WHERE p_number = $1',
+        'SELECT id, name, surname, p_number, password_hash, role FROM pharmacists WHERE p_number = $1',
         [pNumber]
       );
 
@@ -379,15 +364,43 @@ router.post('/auth',
         });
       }
 
+      // Create JWT token and set httpOnly cookie
+      if (!process.env.JWT_SECRET) {
+        console.error('JWT_SECRET not configured');
+        return res.status(500).json({ success: false, message: 'Server not configured' });
+      }
+
+      const jwt = require('jsonwebtoken');
+      const token = jwt.sign(
+        {
+          id: pharmacist.id,
+          pNumber: pharmacist.p_number,
+          name: pharmacist.name,
+          surname: pharmacist.surname,
+          role: pharmacist.role
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '2h' }
+      );
+
+      res.cookie('session', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+        maxAge: 2 * 60 * 60 * 1000
+      });
+
       // Return pharmacist data (without password hash)
       res.json({
         success: true,
         message: 'Authentication successful',
+        token,
         data: {
           id: pharmacist.id,
           name: pharmacist.name,
           surname: pharmacist.surname,
-          pNumber: pharmacist.p_number
+          pNumber: pharmacist.p_number,
+          role: pharmacist.role // <-- optionally return role for frontend use
         }
       });
     } catch (error) {

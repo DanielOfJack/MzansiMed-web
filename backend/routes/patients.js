@@ -14,9 +14,30 @@ const validatePatient = [
     .isLength({ min: 1, max: 100 })
     .withMessage('Surname must be between 1 and 100 characters'),
   body('address')
+    .optional()
     .trim()
     .isLength({ min: 1 })
     .withMessage('Address is required'),
+  body('streetAddress')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 255 })
+    .withMessage('Street address must be between 1 and 255 characters'),
+  body('suburb')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('Suburb must be between 1 and 100 characters'),
+  body('city')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('City must be between 1 and 100 characters'),
+  body('postalCode')
+    .optional()
+    .trim()
+    .isLength({ min: 1, max: 10 })
+    .withMessage('Postal code must be between 1 and 10 characters'),
   body('cellNumber')
     .trim()
     .matches(/^[\d\s\-\+\(\)]+$/)
@@ -59,7 +80,20 @@ router.get('/', [
       offset = 0
     } = req.query;
 
-    let query = 'SELECT * FROM patients WHERE 1=1';
+    let query = `SELECT 
+      id, 
+      initials, 
+      surname, 
+      street_address,
+      suburb,
+      city,
+      postal_code,
+      CONCAT(street_address, ', ', suburb, ', ', city, ', ', postal_code) AS address,
+      cell_number, 
+      home_language, 
+      created_at, 
+      updated_at 
+      FROM patients WHERE 1=1`;
     const params = [];
     let paramCount = 0;
 
@@ -69,7 +103,11 @@ router.get('/', [
       query += ` AND (
         initials ILIKE $${paramCount} OR 
         surname ILIKE $${paramCount} OR 
-        address ILIKE $${paramCount} OR 
+        street_address ILIKE $${paramCount} OR 
+        suburb ILIKE $${paramCount} OR 
+        city ILIKE $${paramCount} OR 
+        postal_code ILIKE $${paramCount} OR 
+        CONCAT(street_address, ', ', suburb, ', ', city, ', ', postal_code) ILIKE $${paramCount} OR
         cell_number ILIKE $${paramCount} OR 
         home_language ILIKE $${paramCount}
       )`;
@@ -90,7 +128,14 @@ router.get('/', [
 
     if (address) {
       paramCount++;
-      query += ` AND address ILIKE $${paramCount}`;
+      // Handle combined address search by checking if the combined address matches
+      query += ` AND (
+        street_address ILIKE $${paramCount} OR 
+        suburb ILIKE $${paramCount} OR 
+        city ILIKE $${paramCount} OR 
+        postal_code ILIKE $${paramCount} OR
+        CONCAT(street_address, ', ', suburb, ', ', city, ', ', postal_code) ILIKE $${paramCount}
+      )`;
       params.push(`%${address}%`);
     }
 
@@ -129,7 +174,11 @@ router.get('/', [
       countQuery += ` AND (
         initials ILIKE $${countParamCount} OR 
         surname ILIKE $${countParamCount} OR 
-        address ILIKE $${countParamCount} OR 
+        street_address ILIKE $${countParamCount} OR 
+        suburb ILIKE $${countParamCount} OR 
+        city ILIKE $${countParamCount} OR 
+        postal_code ILIKE $${countParamCount} OR 
+        CONCAT(street_address, ', ', suburb, ', ', city, ', ', postal_code) ILIKE $${countParamCount} OR
         cell_number ILIKE $${countParamCount} OR 
         home_language ILIKE $${countParamCount}
       )`;
@@ -150,7 +199,14 @@ router.get('/', [
 
     if (address) {
       countParamCount++;
-      countQuery += ` AND address ILIKE $${countParamCount}`;
+      // Handle combined address search by checking if the combined address matches
+      countQuery += ` AND (
+        street_address ILIKE $${countParamCount} OR 
+        suburb ILIKE $${countParamCount} OR 
+        city ILIKE $${countParamCount} OR 
+        postal_code ILIKE $${countParamCount} OR
+        CONCAT(street_address, ', ', suburb, ', ', city, ', ', postal_code) ILIKE $${countParamCount}
+      )`;
       countParams.push(`%${address}%`);
     }
 
@@ -205,7 +261,20 @@ router.get('/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    const result = await db.query('SELECT * FROM patients WHERE id = $1', [id]);
+    const result = await db.query(`SELECT 
+      id, 
+      initials, 
+      surname, 
+      street_address,
+      suburb,
+      city,
+      postal_code,
+      CONCAT(street_address, ', ', suburb, ', ', city, ', ', postal_code) AS address,
+      cell_number, 
+      home_language, 
+      created_at, 
+      updated_at 
+      FROM patients WHERE id = $1`, [id]);
     
     if (result.rows.length === 0) {
       return res.status(404).json({ 
@@ -250,7 +319,30 @@ router.post('/', validatePatient, async (req, res) => {
       });
     }
 
-    const { initials, surname, address, cellNumber, homeLanguage } = req.body;
+    const { initials, surname, address, streetAddress, suburb, city, postalCode, cellNumber, homeLanguage } = req.body;
+
+    // Handle both old address format and new structured format
+    let finalStreetAddress, finalSuburb, finalCity, finalPostalCode;
+    
+    if (streetAddress && suburb && city && postalCode) {
+      // New structured format
+      finalStreetAddress = streetAddress;
+      finalSuburb = suburb;
+      finalCity = city;
+      finalPostalCode = postalCode;
+    } else if (address) {
+      // Old format - parse the address string
+      const addressParts = address.split(',').map(part => part.trim());
+      finalStreetAddress = addressParts[0] || '';
+      finalSuburb = addressParts[1] || '';
+      finalCity = addressParts[2] || '';
+      finalPostalCode = addressParts[3] || '';
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Address information is required (either structured or single address field)'
+      });
+    }
 
     // Check if a patient with the same details already exists
     const existingPatient = await db.query(
@@ -266,8 +358,8 @@ router.post('/', validatePatient, async (req, res) => {
     }
 
     const result = await db.query(
-      'INSERT INTO patients (initials, surname, address, cell_number, home_language) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [initials, surname, address, cellNumber, homeLanguage]
+      'INSERT INTO patients (initials, surname, street_address, suburb, city, postal_code, cell_number, home_language) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [initials, surname, finalStreetAddress, finalSuburb, finalCity, finalPostalCode, cellNumber, homeLanguage]
     );
 
     const patient = result.rows[0];
@@ -279,7 +371,11 @@ router.post('/', validatePatient, async (req, res) => {
         id: patient.id,
         initials: patient.initials,
         surname: patient.surname,
-        address: patient.address,
+        streetAddress: patient.street_address,
+        suburb: patient.suburb,
+        city: patient.city,
+        postalCode: patient.postal_code,
+        address: `${patient.street_address}, ${patient.suburb}, ${patient.city}, ${patient.postal_code}`,
         cellNumber: patient.cell_number,
         homeLanguage: patient.home_language,
         createdAt: patient.created_at,
@@ -390,14 +486,4 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Utility function to get patient by ID
-async function getPatientById(patientId) {
-  const result = await db.query('SELECT * FROM patients WHERE id = $1', [patientId]);
-  return result.rows[0];
-}
-
-// Export both router and utility function
-module.exports = {
-  router,
-  getPatientById
-};
+module.exports = router;

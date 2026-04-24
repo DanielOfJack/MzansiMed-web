@@ -2,6 +2,7 @@ const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const router = express.Router();
+const openai = require('../config/openai');
 
 // Translation utilities for parsing CSV data
 const parseCSV = (csvData) => {
@@ -218,7 +219,14 @@ router.post('/translate', async (req, res) => {
 
     // Handle CSV-based translations
     const validTypes = ['Dosage', 'Frequency', 'Intervals', 'Time_of_Day', 'Precautions'];
-    const normalizedType = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+    // Handle underscore-separated words like 'time_of_day' -> 'Time_of_Day'
+    // Special handling to keep "of" lowercase in "Time_of_Day"
+    const normalizedType = type.split('_').map((word, index) => {
+      if (word.toLowerCase() === 'of') {
+        return 'of';
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join('_');
     
     if (!validTypes.includes(normalizedType)) {
       return res.status(400).json({
@@ -290,7 +298,14 @@ router.post('/translate/batch', async (req, res) => {
         }
 
         // Handle CSV-based translations
-        const normalizedType = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+        // Handle underscore-separated words like 'time_of_day' -> 'Time_of_Day'
+        // Special handling to keep "of" lowercase in "Time_of_Day"
+        const normalizedType = type.split('_').map((word, index) => {
+          if (word.toLowerCase() === 'of') {
+            return 'of';
+          }
+          return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+        }).join('_');
         const validTypes = ['Dosage', 'Frequency', 'Intervals', 'Time_of_Day', 'Precautions'];
         
         if (!validTypes.includes(normalizedType)) {
@@ -331,6 +346,62 @@ router.post('/translate/batch', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to perform batch translation'
+    });
+  }
+});
+
+// Route to translate free text using OpenAI
+router.post('/translate/openai', async (req, res) => {
+  try {
+    const { text, targetLanguage } = req.body;
+
+    if (!text || !targetLanguage) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: text and targetLanguage'
+      });
+    }
+
+    // Validate target language
+    const validLanguages = ['afrikaans', 'isixhosa', 'isizulu'];
+    if (!validLanguages.includes(targetLanguage.toLowerCase())) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid target language. Valid languages are: ${validLanguages.join(', ')}`
+      });
+    }
+
+    // Create the prompt for OpenAI
+    const prompt = `Translate the following instructions from English to ${targetLanguage}. Only provide the translation, no other text.
+
+English text:
+${text}
+
+Translation:`;
+
+    // Call OpenAI API
+    const response = await openai.responses.create({
+      model: "gpt-5",
+      input: prompt,
+    });
+
+    // Extract the translation from the response
+    const translatedText = response.output_text.trim();
+
+    res.json({
+      success: true,
+      data: {
+        originalText: text,
+        translatedText,
+        targetLanguage
+      }
+    });
+  } catch (error) {
+    console.error('Error in OpenAI translation:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to translate text using OpenAI',
+      error: error.message
     });
   }
 });

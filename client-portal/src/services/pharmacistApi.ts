@@ -65,14 +65,9 @@ class PharmacistApiService {
   }
 
   async createPharmacist(pharmacistData: PharmacistFormData): Promise<ApiResponse<Pharmacist>> {
-    const token = localStorage.getItem('token');
     return this.makeRequest<Pharmacist>('/pharmacists', {
       method: 'POST',
       body: JSON.stringify(pharmacistData),
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
     });
   }
 

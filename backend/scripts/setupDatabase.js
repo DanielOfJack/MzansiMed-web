@@ -2,19 +2,74 @@ const { pool } = require('../config/database');
 
 const createTables = async () => {
   try {
-    // Create patients table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS patients (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        initials VARCHAR(10) NOT NULL,
-        surname VARCHAR(100) NOT NULL,
-        address TEXT NOT NULL,
-        cell_number VARCHAR(20) NOT NULL,
-        home_language VARCHAR(50) NOT NULL,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-      )
+    // Check if we need to migrate the patients table
+    const tableInfo = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'patients' AND column_name = 'street_address'
     `);
+    
+    if (tableInfo.rows.length === 0) {
+      // Table exists but needs migration
+      console.log('Migrating patients table to new address structure...');
+      
+      // Add new address columns
+      await pool.query(`
+        ALTER TABLE patients 
+        ADD COLUMN IF NOT EXISTS street_address VARCHAR(255),
+        ADD COLUMN IF NOT EXISTS suburb VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS city VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS postal_code VARCHAR(10)
+      `);
+      
+      // Migrate existing address data
+      const existingPatients = await pool.query('SELECT id, address FROM patients WHERE address IS NOT NULL');
+      
+      for (const patient of existingPatients.rows) {
+        const addressParts = patient.address.split(',').map(part => part.trim());
+        const streetAddress = addressParts[0] || '';
+        const suburb = addressParts[1] || '';
+        const city = addressParts[2] || '';
+        const postalCode = addressParts[3] || '';
+        
+        await pool.query(`
+          UPDATE patients 
+          SET street_address = $1, suburb = $2, city = $3, postal_code = $4 
+          WHERE id = $5
+        `, [streetAddress, suburb, city, postalCode, patient.id]);
+      }
+      
+      // Make the new columns NOT NULL after migration
+      await pool.query(`
+        ALTER TABLE patients 
+        ALTER COLUMN street_address SET NOT NULL,
+        ALTER COLUMN suburb SET NOT NULL,
+        ALTER COLUMN city SET NOT NULL,
+        ALTER COLUMN postal_code SET NOT NULL
+      `);
+      
+      // Drop the old address column
+      await pool.query(`ALTER TABLE patients DROP COLUMN IF EXISTS address`);
+      
+      console.log('Migration completed successfully');
+    } else {
+      // Create new table with new structure
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS patients (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          initials VARCHAR(10) NOT NULL,
+          surname VARCHAR(100) NOT NULL,
+          street_address VARCHAR(255) NOT NULL,
+          suburb VARCHAR(100) NOT NULL,
+          city VARCHAR(100) NOT NULL,
+          postal_code VARCHAR(10) NOT NULL,
+          cell_number VARCHAR(20) NOT NULL,
+          home_language VARCHAR(50) NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    }
 
     // Create medications table
     await pool.query(`
@@ -47,11 +102,6 @@ const createTables = async () => {
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       )
-    `);
-
-    // Add role column if it doesn't exist
-    await pool.query(`
-      ALTER TABLE pharmacists ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'user'
     `);
 
     // Create an index on surname for faster searching
@@ -106,23 +156,23 @@ const createTables = async () => {
 
 const insertSampleData = async () => {
   const samplePatients = [
-    { initials: 'J.D.', surname: 'Smith', address: '123 Main Street, Cape Town, 8001', cellNumber: '082 123 4567', homeLanguage: 'Afrikaans' },
-    { initials: 'M.P.', surname: 'Johnson', address: '456 Oak Avenue, Johannesburg, 2000', cellNumber: '083 234 5678', homeLanguage: 'isiZulu' },
-    { initials: 'S.K.', surname: 'Williams', address: '789 Pine Road, Durban, 4001', cellNumber: '084 345 6789', homeLanguage: 'isiXhosa' },
-    { initials: 'A.B.', surname: 'Brown', address: '321 Elm Street, Pretoria, 0001', cellNumber: '085 456 7890', homeLanguage: 'Afrikaans' },
-    { initials: 'L.M.', surname: 'Davis', address: '654 Maple Drive, Port Elizabeth, 6000', cellNumber: '086 567 8901', homeLanguage: 'isiZulu' },
-    { initials: 'R.T.', surname: 'Wilson', address: '987 Cedar Lane, Bloemfontein, 9300', cellNumber: '087 678 9012', homeLanguage: 'Afrikaans' },
-    { initials: 'N.F.', surname: 'Garcia', address: '147 Birch Court, East London, 5201', cellNumber: '088 789 0123', homeLanguage: 'isiXhosa' },
-    { initials: 'C.H.', surname: 'Martinez', address: '258 Walnut Place, Kimberley, 8300', cellNumber: '089 890 1234', homeLanguage: 'isiZulu' },
-    { initials: 'D.R.', surname: 'Anderson', address: '369 Spruce Road, Polokwane, 0700', cellNumber: '081 901 2345', homeLanguage: 'Afrikaans' },
-    { initials: 'T.L.', surname: 'Thompson', address: '741 Ash Street, Nelspruit, 1200', cellNumber: '082 012 3456', homeLanguage: 'isiXhosa' }
+    { initials: 'J.D.', surname: 'Smith', streetAddress: '123 Main Street', suburb: 'City Bowl', city: 'Cape Town', postalCode: '8001', cellNumber: '082 123 4567', homeLanguage: 'Afrikaans' },
+    { initials: 'M.P.', surname: 'Johnson', streetAddress: '456 Oak Avenue', suburb: 'Sandton', city: 'Johannesburg', postalCode: '2000', cellNumber: '083 234 5678', homeLanguage: 'isiZulu' },
+    { initials: 'S.K.', surname: 'Williams', streetAddress: '789 Pine Road', suburb: 'Berea', city: 'Durban', postalCode: '4001', cellNumber: '084 345 6789', homeLanguage: 'isiXhosa' },
+    { initials: 'A.B.', surname: 'Brown', streetAddress: '321 Elm Street', suburb: 'Hatfield', city: 'Pretoria', postalCode: '0001', cellNumber: '085 456 7890', homeLanguage: 'Afrikaans' },
+    { initials: 'L.M.', surname: 'Davis', streetAddress: '654 Maple Drive', suburb: 'Summerstrand', city: 'Port Elizabeth', postalCode: '6000', cellNumber: '086 567 8901', homeLanguage: 'isiZulu' },
+    { initials: 'R.T.', surname: 'Wilson', streetAddress: '987 Cedar Lane', suburb: 'Universitas', city: 'Bloemfontein', postalCode: '9300', cellNumber: '087 678 9012', homeLanguage: 'Afrikaans' },
+    { initials: 'N.F.', surname: 'Garcia', streetAddress: '147 Birch Court', suburb: 'Beacon Bay', city: 'East London', postalCode: '5201', cellNumber: '088 789 0123', homeLanguage: 'isiXhosa' },
+    { initials: 'C.H.', surname: 'Martinez', streetAddress: '258 Walnut Place', suburb: 'Hadison Park', city: 'Kimberley', postalCode: '8300', cellNumber: '089 890 1234', homeLanguage: 'isiZulu' },
+    { initials: 'D.R.', surname: 'Anderson', streetAddress: '369 Spruce Road', suburb: 'Bendor', city: 'Polokwane', postalCode: '0700', cellNumber: '081 901 2345', homeLanguage: 'Afrikaans' },
+    { initials: 'T.L.', surname: 'Thompson', streetAddress: '741 Ash Street', suburb: 'Riverside', city: 'Nelspruit', postalCode: '1200', cellNumber: '082 012 3456', homeLanguage: 'isiXhosa' }
   ];
 
   try {
     for (const patient of samplePatients) {
       await pool.query(
-        'INSERT INTO patients (initials, surname, address, cell_number, home_language) VALUES ($1, $2, $3, $4, $5)',
-        [patient.initials, patient.surname, patient.address, patient.cellNumber, patient.homeLanguage]
+        'INSERT INTO patients (initials, surname, street_address, suburb, city, postal_code, cell_number, home_language) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+        [patient.initials, patient.surname, patient.streetAddress, patient.suburb, patient.city, patient.postalCode, patient.cellNumber, patient.homeLanguage]
       );
     }
     console.log('Sample patient data inserted successfully');
@@ -415,18 +465,19 @@ const insertSamplePharmacists = async () => {
   const saltRounds = 10;
 
   const samplePharmacists = [
-    { name: 'Daniel', surname: 'van Zyl', pNumber: 'P-10513', password: 'password123', role: 'admin' },
-    { name: 'Sarah', surname: 'Johnson', pNumber: 'P-10514', password: 'securepass456', role: 'user' },
-    { name: 'Michael', surname: 'Smith', pNumber: 'P-10515', password: 'pharmacy789', role: 'user' },
-    { name: 'Emma', surname: 'Wilson', pNumber: 'P-10516', password: 'medcare321', role: 'user' }
+    { name: 'Daniel', surname: 'van Zyl', pNumber: 'P-10513', password: 'password123' },
+    { name: 'Sarah', surname: 'Johnson', pNumber: 'P-10514', password: 'securepass456' },
+    { name: 'Michael', surname: 'Smith', pNumber: 'P-10515', password: 'pharmacy789' },
+    { name: 'Emma', surname: 'Wilson', pNumber: 'P-10516', password: 'medcare321' }
   ];
 
   try {
     for (const pharmacist of samplePharmacists) {
       const passwordHash = await bcrypt.hash(pharmacist.password, saltRounds);
+      
       await pool.query(
-        'INSERT INTO pharmacists (name, surname, p_number, password_hash, role) VALUES ($1, $2, $3, $4, $5)',
-        [pharmacist.name, pharmacist.surname, pharmacist.pNumber, passwordHash, pharmacist.role]
+        'INSERT INTO pharmacists (name, surname, p_number, password_hash) VALUES ($1, $2, $3, $4)',
+        [pharmacist.name, pharmacist.surname, pharmacist.pNumber, passwordHash]
       );
     }
     console.log('Sample pharmacist data inserted successfully');
